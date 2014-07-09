@@ -25,6 +25,7 @@ class User extends Base {
 		}
 		$owner_ids = implode(",", $owner_ids);
 
+		/*
 		$order = "priority DESC, has_due_date ASC, due_date ASC";
 		$f3->set("projects", $projects->find(
 			array(
@@ -54,6 +55,7 @@ class User extends Base {
 				"order" => $order
 			)
 		));
+		*/
 
 		$f3->set("menuitem", "index");
 		echo \Template::instance()->render("user/dashboard.html");

@@ -6,6 +6,38 @@
 <body class="dashboard">
 <div class="container-fluid">
 	<include href="blocks/navbar.html" />
+
+	<div class="row">
+		<div class="col-sm-9">
+
+		</div>
+		<div class="col-sm-3">
+			<div class="panel panel-default">
+				<div class="panel-body">
+					<p>Filters</p>
+					<ul class="nav nav-pills">
+						<li class="active"><a href="?filter_groups=0">My Issues</a></li>
+						<li><a href="?filter_groups=1">My Groups&rsquo; Issues</a></li>
+					</ul>
+					<hr />
+					<ul class="nav nav-pills nav-stacked">
+						<li class="active"><a href="?filter_assigned=1">Assigned to me</a></li>
+						<li><a href="?filter_assigned=0">Created by me</a></li>
+						<li><a href="?filter_assigned=2">All</a></li>
+					</ul>
+					<hr />
+					<p>Grouping</p>
+					<ul class="nav nav-pills nav-stacked">
+						<li class="active"><a href="?view=assigned">Department</a></li>
+						<li><a href="?view=created"></a></li>
+						<li><a href="?view=assigned+created">No grouping</a></li>
+					</ul>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<exclude>
 	<div class="row">
 		<div class="col-sm-5">
 			<h3>My Projects&ensp;<small>{{ count(@projects) }}</small>&ensp;
@@ -28,6 +60,7 @@
 			<include href="blocks/dashboard-issue-list.html" />
 		</div>
 	</div>
+	</exclude>
 	<include href="blocks/footer.html" />
 </div>
 </body>
