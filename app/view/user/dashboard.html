@@ -19,11 +19,21 @@
 						<li class="active"><a href="?filter_groups=1">Include Groups</a></li>
 						<li><a href="?filter_groups=0">Just Me</a></li>
 					</ul>
-					<hr />
+					<br>
 					<ul class="nav nav-pills nav-stacked">
-						<li class="active"><a href="?filter_assigned=1">Assigned to me</a></li>
-						<li><a href="?filter_assigned=0">Created by me</a></li>
-						<li><a href="?filter_assigned=2">All</a></li>
+						<li class="active"><a href="?filter_assigned=assigned">Assigned to me</a></li>
+						<li><a href="?filter_assigned=created">Created by me</a></li>
+						<li><a href="?filter_assigned=both">All</a></li>
+					</ul>
+				</div>
+			</div>
+			<div class="panel panel-default">
+				<div class="panel-heading">Sorting</div>
+				<div class="panel-body">
+					<ul class="nav nav-pills nav-stacked">
+						<li class="active"><a href="?sort=due">Due Date</a></li>
+						<li><a href="?sort=priority">Priority</a></li>
+						<li><a href="?sort=created">Created Date</a></li>
 					</ul>
 				</div>
 			</div>
@@ -31,9 +41,10 @@
 				<div class="panel-heading">Grouping</div>
 				<div class="panel-body">
 					<ul class="nav nav-pills nav-stacked">
-						<li class="active"><a href="?view=assigned">Department</a></li>
-						<li><a href="?view=created"></a></li>
-						<li><a href="?view=assigned+created">No grouping</a></li>
+						<li class="active"><a href="?group=">No grouping</a></li>
+						<li><a href="?group=both">Group + Project</a></li>
+						<li><a href="?group=group">Group</a></li>
+						<li><a href="?group=project">Project</a></li>
 					</ul>
 				</div>
 			</div>
