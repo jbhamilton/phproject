@@ -15,6 +15,7 @@ CREATE TABLE `user` (
 	`theme` varchar(64) DEFAULT NULL,
 	`avatar_filename` varchar(64) DEFAULT NULL,
 	`api_key` varchar(40) NULL,
+	`options` text NOT NULL,
 	`created_date` datetime NOT NULL,
 	`deleted_date` datetime DEFAULT NULL,
 	PRIMARY KEY (`id`),

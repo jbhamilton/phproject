@@ -8,47 +8,63 @@
 	<include href="blocks/navbar.html" />
 
 	<div class="row">
-		<div class="col-sm-9">
 
+		<div class="col-sm-9">
+			<check if="{{ empty(@groups) }}">
+				<true>
+					<include href="blocks/issue-list.html" />
+				</true>
+				<false>
+					<repeat group="{{ @groups }}" key="{{ @key }}" value="{{ @group }}">
+						<h3>{{ @group.title }}</h3>
+						<set issues="{{ @group.issues }}" />
+						<include href="blocks/issue-list.html" />
+					</repeat>
+				</false>
+			</check>
 		</div>
+
 		<div class="col-sm-3">
-			<div class="panel panel-default">
-				<div class="panel-heading">Filters</div>
-				<div class="panel-body">
-					<ul class="nav nav-pills">
-						<li class="active"><a href="?filter_groups=1">Include Groups</a></li>
-						<li><a href="?filter_groups=0">Just Me</a></li>
-					</ul>
-					<br>
-					<ul class="nav nav-pills nav-stacked">
-						<li class="active"><a href="?filter_assigned=assigned">Assigned to me</a></li>
-						<li><a href="?filter_assigned=created">Created by me</a></li>
-						<li><a href="?filter_assigned=both">All</a></li>
-					</ul>
+			<div class="dashboard-options">
+				<div class="panel panel-default">
+					<div class="panel-heading">Filters</div>
+					<div class="panel-body">
+						<ul class="nav nav-pills">
+							<li {{ @options.filter_groups == 1 ? 'class="active"':'' }}><a href="?filter_groups=1">Include Groups</a></li>
+							<li {{ @options.filter_groups == 0 ? 'class="active"':'' }}><a href="?filter_groups=0">Just Me</a></li>
+						</ul>
+						<br>
+						<ul class="nav nav-pills">
+							<li {{ @options.filter_user == 'assigned' ? 'class="active"':'' }}><a href="?filter_user=assigned">Assigned</a></li>
+							<li {{ @options.filter_user == 'created' ? 'class="active"':'' }}><a href="?filter_user=created">Created</a></li>
+							<li {{ @options.filter_user == 'both' ? 'class="active"':'' }}><a href="?filter_user=both">Both</a></li>
+						</ul>
+					</div>
 				</div>
-			</div>
-			<div class="panel panel-default">
-				<div class="panel-heading">Sorting</div>
-				<div class="panel-body">
-					<ul class="nav nav-pills nav-stacked">
-						<li class="active"><a href="?sort=due">Due Date</a></li>
-						<li><a href="?sort=priority">Priority</a></li>
-						<li><a href="?sort=created">Created Date</a></li>
-					</ul>
+				<div class="panel panel-default">
+					<div class="panel-heading">Grouping</div>
+					<div class="panel-body">
+						<ul class="nav nav-pills">
+							<li {{ @options.group == 'project' ? 'class="active"':'' }}><a href="?group=project">Project</a></li>
+							<li {{ @options.group == 'sprint' ? 'class="active"':'' }}><a href="?group=sprint">Sprint</a></li>
+							<li {{ @options.group == 'group' ? 'class="active"':'' }}><a href="?group=group">Created By Group</a></li>
+							<li {{ @options.group == '' ? 'class="active"':'' }}><a href="?group=">None</a></li>
+						</ul>
+					</div>
 				</div>
-			</div>
-			<div class="panel panel-default">
-				<div class="panel-heading">Grouping</div>
-				<div class="panel-body">
-					<ul class="nav nav-pills nav-stacked">
-						<li class="active"><a href="?group=">No grouping</a></li>
-						<li><a href="?group=both">Group + Project</a></li>
-						<li><a href="?group=group">Group</a></li>
-						<li><a href="?group=project">Project</a></li>
-					</ul>
+				<div class="panel panel-default">
+					<div class="panel-heading">Sorting</div>
+					<div class="panel-body">
+						<ul class="nav nav-pills">
+							<li {{ @options.sort == 'due_date' ? 'class="active"':'' }}><a href="?sort=due_date">Due Date</a></li>
+							<li {{ @options.sort == 'priority' ? 'class="active"':'' }}><a href="?sort=priority">Priority</a></li>
+							<li {{ @options.sort == 'created' ? 'class="active"':'' }}><a href="?sort=created">Created</a></li>
+						</ul>
+					</div>
 				</div>
 			</div>
 		</div>
+
 	</div>
 
 	<exclude>
@@ -84,5 +100,29 @@
 	</exclude>
 	<include href="blocks/footer.html" />
 </div>
+<script type="text/javascript">
+$(window).resize(function() {
+	var $options = $('.dashboard-options');
+	if($(window).height() > $options.height() + 100) {
+		var width = $(window).width(),
+			offset = $options.offset(),
+			parent = $options.parent();
+		$options.css({
+			position: 'fixed',
+			width: parent.width(),
+			top: offset.top,
+			right: parent.css('padding-right')
+		});
+	} else {
+		$options.css({
+			position: 'static',
+			width: 'auto'
+		});
+	}
+});
+$(document).ready(function() {
+	$(window).resize();
+});
+</script>
 </body>
 </html>

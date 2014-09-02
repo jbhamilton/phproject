@@ -17,52 +17,84 @@ class User extends Base {
 	public function dashboard($f3, $params) {
 		$projects = new \Model\Issue\Detail();
 
-		// Add user's group IDs to owner filter
-		$owner_ids = array($this->_userId);
-		$groups = new \Model\User\Group();
-		foreach($groups->find(array("user_id = ?", $this->_userId)) as $r) {
-			$owner_ids[] = $r->group_id;
+		$user = $f3->get("user_obj");
+
+		// Set default view options
+		$options = array(
+			"filter_groups" => 1,
+			"filter_user" => "assigned",
+			"group" => "project",
+			"sort" => "due_date"
+		);
+
+		// Replace defaults with user data and GET params
+		if(!empty($user->options)) {
+			$options = array_replace($options, json_decode($user->options, true));
 		}
-		$owner_ids = implode(",", $owner_ids);
+		if($f3->get("GET")) {
+			$options = array_merge($options, array_intersect_key($f3->get("GET"), $options));
+			// Save options to user model if changed
+			$user->options = json_encode($options);
+			$user->save();
+		}
 
-		/*
-		$order = "priority DESC, has_due_date ASC, due_date ASC";
-		$f3->set("projects", $projects->find(
-			array(
-				"owner_id IN ($owner_ids) and type_id=:type AND deleted_date IS NULL AND closed_date IS NULL AND status_closed = 0",
-				":type" => $f3->get("issue_type.project"),
-			),array(
-				"order" => $order
-			)
-		));
+		// Build query filter
+		$user_ids = array($this->_userId);
+		if($options["filter_groups"]) {
+			$groups = new \Model\User\Group();
+			foreach($groups->find(array("user_id = ?", $this->_userId)) as $r) {
+				$user_ids[] = $r->group_id;
+			}
+		}
+		$user_ids = implode(",", $user_ids);
+		switch($options["filter_user"]) {
+			case "created":
+				$user_filter = "author_id IN (" . $user_ids . ")";
+				break;
+			case "both":
+				$user_filter = "(author_id IN (" . $user_ids . ") OR owner_id IN(" . $user_ids . "))";
+				break;
+			default:
+				$user_filter = "owner_id IN (" . $user_ids . ")";
+		}
+		$filter = $user_filter . " AND deleted_date IS NULL AND closed_date IS NULL AND status_closed = 0";
 
-		$bugs = new \Model\Issue\Detail();
-		$f3->set("bugs", $bugs->find(
-			array(
-				"owner_id IN ($owner_ids) and type_id=:type AND deleted_date IS NULL AND closed_date IS NULL AND status_closed = 0",
-				":type" => $f3->get("issue_type.bug"),
-			),array(
-				"order" => $order
-			)
-		));
+		switch($options["sort"]) {
+			case "priority":
+				$order = "priority DESC, has_due_date ASC, due_date ASC";
+				break;
+			case "created":
+				$order = "created_date DESC";
+				break;
+			default:
+				$order = "has_due_date ASC, due_date ASC";
+		}
 
-		$tasks = new \Model\Issue\Detail();
-		$f3->set("tasks", $tasks->find(
-			array(
-				"owner_id IN ($owner_ids) AND type_id=:type AND deleted_date IS NULL AND closed_date IS NULL AND status_closed = 0",
-				":type" => $f3->get("issue_type.task"),
-			),array(
-				"order" => $order
-			)
-		));
-		*/
+		// Get issue list
+		$issue = new \Model\Issue\Detail;
+		$issues = $issue->find($filter, array("order" => $order));
+		$f3->set("issues", $issues);
 
 		// Get current sprint if there is one
 		$sprint = new \Model\Sprint;
 		$sprint->load("NOW() BETWEEN start_date AND end_date");
 		$f3->set("sprint", $sprint);
 
+		$headings = array(
+				"id",
+				"title",
+				"type",
+				"priority",
+				"status",
+				"author",
+				"assignee",
+				"sprint",
+				"created",
+				"due"
+			);
+		$f3->set("headings", $headings);
 		$f3->set("menuitem", "index");
+		$f3->set("options", $options);
 		echo \Template::instance()->render("user/dashboard.html");
 	}
 

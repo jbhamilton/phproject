@@ -128,23 +128,32 @@
 				<tr>
 					<th></th>
 					<repeat group="{{ @headings }}" value="{{ @heading }}">
-						<th class="nowrap"><a href="#" class="issue-sort nolink" id="{{ @heading }}">
-							<check if="{{ !empty(@GET.orderby) && @GET.orderby == @heading }}">
+						<th class="nowrap">
+							<check if="{{ !empty(@show_filters) }}">
 								<true>
-									<check if="{{ !empty(@GET.ascdesc) && @GET.ascdesc == 'asc' }}">
-										<true><span class="glyphicon glyphicon-chevron-up"></span></true>
-										<false><span class="glyphicon glyphicon-chevron-down"></span></false>
-									</check>
+									<a href="#" class="issue-sort nolink" id="{{ @heading }}">
+										<check if="{{ !empty(@GET.orderby) && @GET.orderby == @heading }}">
+											<check if="{{ !empty(@GET.ascdesc) && @GET.ascdesc == 'asc' }}">
+												<true><span class="glyphicon glyphicon-chevron-up"></span></true>
+												<false><span class="glyphicon glyphicon-chevron-down"></span></false>
+											</check>
+										</check>
+										{{ !empty(@dict.cols[@heading]) ? @dict.cols[@heading] : ucwords(str_replace(array('_', 'id'), array(' ', 'ID'), @heading)) }}
+									</a></th>
 								</true>
+								<false>
+									{{ !empty(@dict.cols[@heading]) ? @dict.cols[@heading] : ucwords(str_replace(array('_', 'id'), array(' ', 'ID'), @heading)) }}
+								</false>
 							</check>
-							{{ !empty(@dict.cols[@heading]) ? @dict.cols[@heading] : ucwords(str_replace(array('_', 'id'), array(' ', 'ID'), @heading)) }}
-						</a></th>
 					</repeat>
 				</tr>
 			</check>
 
 		</thead>
 		<tbody>
+			<check if="{{ !isset(@issues.subset) }}">
+				<set issues="{{ array('subset' => @issues) }}" />
+			</check>
 			<repeat group="{{ @issues.subset }}" value="{{ @item }}">
 				<tr data-id="{{ @item.id }}" class="{{ @item.status_closed ? 'closed' : '' }}">
 					<td><input type="checkbox" name="id[]" value="{{ @item.id }}"></td>
