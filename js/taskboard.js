@@ -40,46 +40,43 @@ var Taskboard = {
 			}
 		});
 
-		//initialize issue editing handler
-		$("#taskboard").on("click", ".card a", function(e) {
-			e.stopPropagation();
-		});
+		// Initialize issue editing handler
 		$(".card.task").click(function(e) {
-			Taskboard.modalEdit($(this));
-		});
-
-		//initialize modal window
-		$("#task-dialog").dialog({
-			autoOpen: false,
-			height: 430,
-			width: 550,
-			modal: true,
-			buttons: {
-				Cancel: function() {
-					$(this).dialog("close");
-				},
-				"Save": function() {
-
-				}
-			},
-			close: function() {
-
+			if(!$(e.target).is("a")) {
+				Taskboard.modalEdit($(this));
 			}
 		});
 
-		//temporary fix until moving to bootstrap modal
-		$('.ui-dialog .ui-dialog-buttonset button:last').attr("class", "btn btn-danger btn-xs");
-		$('.ui-dialog .ui-dialog-buttonset button:first').attr("class", "btn btn-default btn-sm");
+		// Initialize add buttons on stories
+		$(".add-task").click(function(e) {
+			Taskboard.modalAdd($(this).parents('.tb-row').data("story-id"));
+			e.preventDefault();
+		});
 
-		//initialize add buttons on stories
-		$(".add-task").click(function() {
-			Taskboard.modalAdd($(this));
+		// Handle add/edit form submission
+		$('#task-dialog form').submit(function(e) {
+			e.preventDefault();
+			var $this = $(this),
+				data = $('#task-dialog form').serializeObject();
+			$this.find(".has-error").removeClass("has-error");
+			if($this.find('#taskId').val()) {
+				if ($('#hours').val() === '' || isNumber($('#hours').val())) {
+					Taskboard.updateCard($("#task_" + data.taskId), data);
+					$("#task-dialog").modal('hide');
+				} else {
+					$("#hours").parents(".form-group").addClass("has-error");
+				}
+			} else {
+				Taskboard.addCard($("#project_" + $this.data("story-id")), data, $this.data("story-id"));
+				$("#task-dialog").modal('hide');
+			}
+			return false;
 		});
 
 	},
 	makeDraggable: function(card) {
 		$(card).draggable({
-			//helper: "clone",
+			helper: "clone",
 			cursoer: "move",
 			containment: "#task-table",
 			revert: "invalid",
@@ -103,78 +100,37 @@ var Taskboard = {
 			date = $(data).find('.dueDate').text().trim(),
 			priority = $(data).find('.priority').data('val');
 
-		Window.testData = data;
-
-		// Taskboard.changeModalPriority(priority);
 		$("#task-dialog input#taskId").val(taskId);
 		$("#task-dialog input#title").val(title);
 		$("#task-dialog textarea#description").val(description);
 		$("#task-dialog input#hours").val(hours);
+		$("#task-dialog input#hours_spent").val('');
+		$("#task-dialog input#comment").val('');
 		$("#task-dialog input#dueDate").val(date);
-		$("#task-dialog").find("#dueDate").datepicker();
+		$("#task-dialog").find("#dueDate").datepicker({
+			format: 'mm/dd/yyyy'
+		});
 		Taskboard.setOptionByVal("#task-dialog", user);
 		Taskboard.setOptionByVal("#priority", priority);
 
-		$("#task-dialog").dialog({
-			title: "Edit Task"
-		});
-		$("#task-dialog").dialog("open");
-		$("#task-dialog").dialog({
-			buttons: {
-				Cancel: function() {
-					$(this).dialog("close");
-				},
-				"Save": function() {
-					$('.ui-error').remove();
-					$(".input-error").removeClass(".input-error");
-					if ($('#hours').val() === '' || isNumber($('#hours').val())) {
-						Taskboard.updateCard(data, $("form#task-dialog").serializeObject());
-						$("#task-dialog").dialog("close");
-					} else {
-						$("#hours").before('<label style="color:red;display:block;"" class="ui-error">Value must be a number!</label>');
-						$("#hours").addClass("input-error");
-					}
-				}
-			}
-		});
+		$("#task-dialog .modal-title").text("Edit Task");
+		$("#task-dialog").modal("show");
 		Taskboard.changeModalColor(userColor);
 	},
-	modalAdd: function(data) {
-		var storyId = data.parents('.tb-row').attr("data-story-id");
-		// Taskboard.changeModalPriority("normal");
-		$("#task-dialog input").val("");
-		$("#task-dialog textarea").val("");
-		$("#task-dialog #priority").val($("#task-dialog #priority option:first").val());
-		Taskboard.setOptionByText("#task-dialog", "");
-		Taskboard.changeModalColor("#E7E7E7");
-		$("#task-dialog").dialog({
-			title: "Add Task"
-		});
-		$("#task-dialog").dialog("open");
-		$("#task-dialog").find("#dueDate").datepicker();
-		$("#task-dialog").dialog({
-			buttons: {
-				Cancel: function() {
-					$(this).dialog("close");
-				},
-				"Save": function() {
-					Taskboard.addCard(data, $("form#task-dialog").serializeObject(), storyId);
-					$("#task-dialog").dialog("close");
-				}
-			}
+	modalAdd: function(storyId) {
+		$("#task-dialog input, #task-dialog textarea").val("");
+		$("#task-dialog #priority").val(0);
+		$("#task-dialog #assigned").val($("#task-dialog #assigned").data("default-value"));
+		Taskboard.changeModalColor($("#task-dialog #assigned").data("default-color"));
+		$("#task-dialog .modal-title").text("Add Task");
+		$("#task-dialog form").data("story-id", storyId);
+		$("#task-dialog").modal("show");
+		$("#task-dialog").find("#dueDate").datepicker({
+			format: 'mm/dd/yyyy'
 		});
 	},
 	changeModalColor: function(userColor) {
-		$(".ui-dialog").css("border", "7px solid " + userColor);
-	},
-	changeModalPriority: function(priority) {
-		/*if(priority == 0) {
-			$('.ui-dialog-title').css("color", Taskboard.priorityColors.normal);
-		} elseif(priority < 0) {
-			$('.ui-dialog-title').css("color", Taskboard.priorityColors.low);
-		} elseif(priority > 0) {
-			$('.ui-dialog-title').css("color", Taskboard.priorityColors.high);
-		}*/
+		$("#task-dialog .modal-content").css("border", "3px solid " + userColor);
 	},
 	updateCardPriority: function(priority, card) {
 		if(priority === 0) {
@@ -205,7 +161,10 @@ var Taskboard = {
 	updateCard: function(card, data) {
 		$(card).find(".title").text(data.title);
 
-		if (isNumber(data.hours) && data.hours > 0) {
+		if (isNumber(data.hours_spent) && data.burndown && data.hours > 0) {
+			$(card).find(".hours").text(parseFloat(data.hours).toFixed(1) - parseFloat(data.hours_spent));
+			$(card).find(".hours").show();
+		} else if (isNumber(data.hours) && data.hours > 0) {
 			$(card).find(".hours").text(parseFloat(data.hours).toFixed(1));
 			$(card).find(".hours").show();
 		} else {
@@ -249,7 +208,7 @@ var Taskboard = {
 
 		card.show();
 	},
-	TaskboardReceive: function(task) { //if the task changes statuses/stories
+	TaskboardReceive: function(task) { // if the task changes statuses/stories
 		var taskId = $(task).attr("id").replace("task_", ""),
 			receiverStatus = $(task).parent().attr("data-status"),
 			receiverStory = $(task).parents('.tb-row').attr("data-story-id"),
@@ -322,14 +281,14 @@ var Taskboard = {
 				$(card).find(".task-id").html('<a href="/issues/' + data.taskId + '" target="_blank">' + data.taskId + '</a>');
 				$(card).attr("id", "task_" + data.taskId);
 				$(card).click(function() {
-					//add binding for click on new card only if the id is set
+					// Add binding for click on new card only if the id is set
 					Taskboard.modalEdit($(this));
 				});
 				Taskboard.makeDraggable(card);
 			},
 			error: function(jqXHR, textStatus, errorThrown) {
 				Taskboard.newUnBlock(taskId);
-				Taskboard.newShowError(taskId);
+				Taskboard.showError(taskId);
 				$(card).draggable("option", "disabled", true);
 			}
 		});
@@ -347,14 +306,9 @@ var Taskboard = {
 		$('#new_task_' + taskId).find('.spinner').remove();
 	},
 	showError: function(taskId) {
-		$('#task_' + taskId).css({
+		$('#task_' + taskId + ', #new_task_' + taskId).css({
 			"opacity": ".8"
-		}).append('<div class="error" title="An error occured while saving the task!"></div>');
-	},
-	newShowError: function(taskId) {
-		$('#new_task_' + taskId).css({
-			"opacity": ".8"
-		}).append('<div class="error" title="An error occured while saving the task!"></div>');
+		}).append('<div class="error text-danger" title="An error occured while saving the task."><span class="glyphicon glyphicon-floppy-remove"></span></div>');
 	}
 };
 
@@ -364,24 +318,41 @@ function isNumber(n) {
 
 function checkLength(o, n, min, max) {
 	if (o.val().length > max || o.val().length < min) {
-		o.addClass("ui-state-error");
-		// updateTips("Length of " + n + " must be between " min + " and " + max + "."); // updateTips() function does not exist
+		if(o.parents(".form-group").length) {
+			o.parents(".form-group").addClass("has-error");
+		} else {
+			o.addClass("has-error");
+		}
 		return false;
+	} else {
+		if(o.parents(".form-group").length) {
+			o.parents(".form-group").removeClass("has-error");
+		} else {
+			o.removeClass("has-error");
+		}
 	}
 	return true;
 }
 
 function checkRegexp(o, regexp, n) {
 	if (!(regexp.test(o.val()))) {
-		o.addClass("ui-state-error");
-		//updateTips(n); // updateTips() function does not exist
+		if(o.parents(".form-group").length) {
+			o.parents(".form-group").addClass("has-error");
+		} else {
+			o.addClass("has-error");
+		}
 		return false;
+	} else {
+		if(o.parents(".form-group").length) {
+			o.parents(".form-group").removeClass("has-error");
+		} else {
+			o.removeClass("has-error");
+		}
 	}
 	return true;
 }
 
-$.fn.serializeObject = function()
-{
+$.fn.serializeObject = function() {
 	var o = {};
 	var a = this.serializeArray();
 	$.each(a, function() {

@@ -49,6 +49,16 @@ function print_json($object) {
 }
 
 /**
+ * Clean a string for encoding in JSON
+ * Collapses whitespace, then trims
+ * @param  string $string
+ * @return string
+ */
+function clean_json($string) {
+	return trim(preg_replace('/\s+/', ' ', $string));
+}
+
+/**
  * Internal function used by make_clickable
  * @param  array  $matches
  * @return string
@@ -180,13 +190,15 @@ function parseTextile($str, $ttl=false) {
 
 	// Value wasn't cached, run the parser
 	$tex = new \Helper\Textile\Parser();
+	$tex->setDocumentType('html5')
+		->setDimensionlessImages(true);
 	$val = $tex->parse($str);
 
 	// Find issue IDs and convert to links
-	$val = preg_replace("/(?<=[\s,\(])#([0-9]+)(?=[\s,\)\.,])/", "<a href=\"/issues/$1\">#$1</a>", $val);
+	$val = preg_replace("/(?<=[\s,\(^])#([0-9]+)(?=[\s,\)\.,$])/", "<a href=\"/issues/$1\">#$1</a>", $val);
 
 	// Find usernames and replace with links
-	$val = preg_replace("/(?<=\s)@([a-z0-9_-]+)(?=\s)/i", " <a href=\"/user/$1\">@$1</a> ", $val);
+	// $val = preg_replace("/(?<=\s)@([a-z0-9_-]+)(?=\s)/i", " <a href=\"/user/$1\">@$1</a> ", $val);
 
 	// Convert URLs to links
 	$val = make_clickable($val);
@@ -222,8 +234,13 @@ function format_filesize($filesize) {
  * @param  int $timestamp
  * @return int
  */
-function utc2local($timestamp) {
+function utc2local($timestamp = null) {
+	if(!$timestamp) {
+		$timestamp = time();
+	}
+
 	$f3 = Base::instance();
+
 	if($f3->exists("site.timeoffset")) {
 		$offset = $f3->get("site.timeoffset");
 	} else {
@@ -232,5 +249,6 @@ function utc2local($timestamp) {
 		$dtLocal = new DateTime("now", $dtzLocal);
 		$offset = $dtzLocal->getOffset($dtLocal);
 	}
+
 	return $timestamp + $offset;
 }

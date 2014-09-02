@@ -17,47 +17,61 @@
 		<button type="button" class="close">&times;</button>
 	</div>
 
+	<check if="{{ @issue.deleted_date }}">
+		<p id="alert" class="alert alert-danger">
+			{{ @dict.deleted_notice }}&ensp;
+			<a href="issues/undelete/{{ @issue.id }}" class="btn btn-default btn-xs">{{ @dict.restore_issue }}</a>
+		</p>
+	</check>
+
+	<check if="{{ count(@hierarchy) > 1 }}">
+		<ol class="breadcrumb pull-left">
+			<repeat group="{{ @hierarchy }}" value="{{ @crumb }}">
+				<check if="{{ @crumb.id != @issue.id }}">
+					<li class="active">
+						<a href="issues/{{ @crumb.id }}">
+							{{ @crumb.name }} <small>#{{ @crumb.id }}</small>
+						</a>
+					</li>
+				</check>
+			</repeat>
+		</ol>
+	</check>
 	<div class="row">
 		<div class="col-lg-12">
-			<check if="{{ count(@hierarchy) > 1 }}">
-				<true>
-					<ol class="breadcrumb pull-left issue-heading">
-						<repeat group="{{ @hierarchy }}" value="{{ @crumb }}">
-							<check if="{{ @crumb.id == @issue.id }}">
-								<true>
-									<li class="active">{{ @crumb.name }} <small>#{{ @crumb.id }}</small></li>
-								</true>
-								<false>
-									<li><a href="issues/{{ @crumb.id }}">{{ @crumb.name }}</a></li>
-								</false>
-							</check>
-						</repeat>
-					</ol>
-				</true>
-				<false>
-					<h3 class="pull-left issue-heading">
-						{{ @issue.name }} <small>#{{ @issue.id }}</small>
-					</h3>
-				</false>
-			</check>
+			<h3 class="pull-left issue-heading">
+				{{ @issue.name }} <small>#{{ @issue.id }}</small>
+			</h3>
 			<div class="pull-right">
 				<check if="{{ !@issue.closed_date }}">
-					<a id="btn-Mark Complete" href="issues/close/{{ @issue.id }}" class="btn btn-success btn-xs">
-						<span class="glyphicon glyphicon-check"></span>&ensp;Mark Complete
+					<true>
+						<a id="btn-Mark Complete" href="issues/close/{{ @issue.id }}" class="btn btn-success btn-xs">
+							<span class="glyphicon glyphicon-check"></span>&ensp;{{ @dict.mark_complete }}
+						</a>
+					</true>
+					<false>
+						<a id="btn-Mark Complete" href="issues/reopen/{{ @issue.id }}" class="btn btn-warning btn-xs">
+							<span class="glyphicon glyphicon-repeat"></span>&ensp;{{ @dict.reopen }}
+						</a>
+					</false>
+				</check>
+				<check if="{{ @issue.sprint_id }}">
+					<a id="btn-Mark Complete" href="taskboard/{{ @issue.sprint_id }}/all#task_{{ @issue.id }}" target="_blank" class="btn btn-default btn-xs has-tooltip" title="{{ @dict.show_on_taskboard }}">
+						<span class="glyphicon glyphicon-list"></span>
 					</a>
 				</check>
 				<a id="btn-copy" href="issues/copy/{{ @issue.id }}" class="btn btn-default btn-xs">
-					<span class="glyphicon glyphicon-file"></span>&ensp;Copy
+					<span class="glyphicon glyphicon-file"></span>&ensp;{{ @dict.copy }}
 				</a>
 				<check if="{{ @watching }}">
 					<true>
 						<button class="btn btn-default btn-xs" onclick="unwatch_issue();" id="watch-btn">
-							<span class="glyphicon glyphicon-eye-close"></span>&ensp;Unwatch
+							<span class="glyphicon glyphicon-eye-close"></span>&ensp;{{ @dict.unwatch }}
 						</button>
 					</true>
 					<false>
 						<button class="btn btn-default btn-xs" onclick="watch_issue();" id="watch-btn">
-							<span class="glyphicon glyphicon-eye-open"></span>&ensp;Watch
+							<span class="glyphicon glyphicon-eye-open"></span>&ensp;{{ @dict.watch }}
 						</button>
 					</false>
 				</check>
@@ -78,8 +92,15 @@
 				<div class="issue-head clearfix">
 					<img src="{{ h(@author->avatar(48)) }}" class="profile-picture img-rounded" alt>
 					<p class="pull-left">
-						<a href="user/{{ @author.username }}" class="has-tooltip" title="Author" data-placement="right">{{ @author.name }}</a><br>
-						{{ date("M j, Y \\a\\t g:ia", utc2local(strtotime(@issue.created_date))) }}
+						<check if="{{ @author.username }}">
+							<true>
+								<a href="user/{{ @author.username }}" class="has-tooltip" title="Author" data-placement="right">{{ @author.name }}</a>
+							</true>
+							<false>
+								<span class="has-tooltip" title="Author" data-placement="right">{{ @author.name }}</span>
+							</false>
+						</check>
+						<br>{{ date("M j, Y \\a\\t g:ia", utc2local(strtotime(@issue.created_date))) }}
 					</p>
 				</div>
 
@@ -99,19 +120,33 @@
 					<dd>{{ @issue.status_name }}</dd>
 
 					<dt>Assigned to</dt>
-					<dd><a href="user/{{ @owner.username }}">{{ @owner.name }}</a></dd>
+					<dd>
+						<check if="{{ @owner.username }}">
+							<true>
+								<a href="user/{{ @owner.username }}">{{ @owner.name }}</a>
+							</true>
+							<false>
+								{{ @owner.name }}
+							</false>
+						</check>
+					</dd>
 
 					<check if="{{ @issue.repeat_cycle != 'none' }}">
 						<dt>Repeat Cycle</dt>
 						<dd>{{ ucfirst(@issue.repeat_cycle) }}</dd>
 					</check>
 
+					<check if="{{ !empty(@issue.hours_spent) }}">
+						<dt>Spent Hours</dt>
+						<dd>{{ @issue.hours_spent}}</dd>
+					</check>
+
 					<check if="{{ !empty(@issue.hours_total) }}">
-						<dt>Total Hours</dt>
-						<dd>{{ @issue.hours_total }}</dd>
+						<dt>Planned Hours</dt>
+						<dd>{{ @issue.hours_total ?: 0 }}</dd>
 
 						<dt>Remaining Hours</dt>
-						<dd>{{ @issue.hours_remaining }}</dd>
+						<dd>{{ @issue.hours_remaining ?: 0 }}</dd>
 					</check>
 
 					<check if="{{ strtotime(@issue.due_date) }}">
@@ -135,7 +170,7 @@
 						<repeat group="{{ @files }}" value="{{ @file }}">
 							<li class="has-popover" id="f-{{ @file.id }}" data-id="{{ @file.id }}" data-id="{{ @file.id }}" data-trigger="hover" data-html="true" data-content="<p>Uploaded by: {{ @file.user_name }}</p>{{ @file.filename }}<br>{{ date('M j, Y \a\t g:ia', utc2local(strtotime(@file.created_date))) }}<br>{{ format_filesize(@file.filesize) }}">
 								<a href="files/{{ @file.id }}/{{ @file.filename }}" target="_blank">
-									<img class src="files/thumb/96/{{ @file.id }}.png" /><br />
+									<img class src="files/thumb/96-{{ @file.id }}.png" /><br />
 									{{ @file.filename }}
 								</a>
 								<button class="btn btn-xs btn-danger delete" title="Delete File">&times;</button>
@@ -149,15 +184,15 @@
 				</p>
 				<br>
 				<ul class="nav nav-tabs">
-					<li class="active"><a href="#comments" data-toggle="tab">Comments&ensp;<span class="badge" id="comment_badge">{{ count(@comments) }}</span></a></li>
-					<li><a href="#history" data-toggle="tab" id="tab_history">History</a></li>
-					<li><a href="#watchers" data-toggle="tab" id="tab_watchers">Watchers</a></li>
+					<li class="active"><a href="#comments" data-toggle="tab">{{ @dict.comments }}&ensp;<span class="badge" id="comment_badge">{{ count(@comments) }}</span></a></li>
+					<li><a href="#history" data-toggle="tab" id="tab_history">{{ @dict.history }}</a></li>
+					<li><a href="#watchers" data-toggle="tab" id="tab_watchers">{{ @dict.watchers }}</a></li>
 					<check if="{{ @issue_type.project == @type.id }}">
 						<true>
-							<li><a href="#related" data-toggle="tab" id="tab_related">Child Tasks</a></li>
+							<li><a href="#related" data-toggle="tab" id="tab_related">{{ @dict.child_tasks }}</a></li>
 						</true>
 						<false>
-							<li><a href="#related" data-toggle="tab" id="tab_related">Related Tasks</a></li>
+							<li><a href="#related" data-toggle="tab" id="tab_related">{{ @dict.related_tasks }}</a></li>
 						</false>
 					</check>
 				</ul>
@@ -168,19 +203,19 @@
 								<input type="hidden" name="action" value="comment">
 								<div class="form-group">
 									<div class="col-md-12">
-										<textarea class="form-control input-sm" id="comment_textarea" name="text" type="text" placeholder="Write a comment&hellip;" autocomplete="off"></textarea>
+										<textarea class="form-control input-sm" id="comment_textarea" name="text" type="text" placeholder="{{ @dict.write_a_comment }}" autocomplete="off"></textarea>
 									</div>
 								</div>
 								<div class="form-group">
 									<div class="col-md-12 text-right">
-										<button type="submit" class="btn btn-primary btn-sm">Save Comment</button>
+										<button type="submit" class="btn btn-primary btn-sm">{{ @dict.save_comment }}</button>
 									</div>
 								</div>
 							</form>
 							<repeat group="{{ @comments }}" value="{{ @comment }}">
 								<div class="media" id="c-{{ @comment.id }}">
 									<a class="pull-left" href="user/{{ @comment.user_username }}">
-										<img class="profile-picture media-object img-rounded" src="avatar/48/{{ @comment.user_id }}.png" alt>
+										<img class="profile-picture media-object img-rounded" src="avatar/48-{{ @comment.user_id }}.png" alt>
 									</a>
 									<div class="media-body">
 										<p class="media-heading"><a href="user/{{ @comment.user_username }}">{{ @comment.user_name }}</a></p>
@@ -188,10 +223,10 @@
 										<check if="{{ @comment.file_id }}">
 											<check if="{{ @comment.file_deleted_date }}">
 												<true>
-													<div><b>Attached file:</b> <span style="text-decoration: line-through;">{{@comment.file_filename}}</span> <span class="text-danger">[Deleted]</span></div>
+													<div><b>{{ @dict.attached_file }}:</b> <span style="text-decoration: line-through;">{{@comment.file_filename}}</span> <span class="text-danger">[{{ @dict.deleted }}]</span></div>
 												</true>
 												<false>
-													<div><b>Attached file:</b> <a href="files/{{ @comment.file_id }}/{{ @comment.file_filename }}" target="_blank">{{@comment.file_filename}}</a></div>
+													<div><b>{{ @dict.attached_file }}:</b> <a href="files/{{ @comment.file_id }}/{{ @comment.file_filename }}" target="_blank">{{@comment.file_filename}}</a></div>
 												</false>
 											</check>
 										</check>
@@ -234,8 +269,8 @@
 	<div class="modal-dialog">
 		<div class="modal-content">
 			<div class="modal-header">
-				<button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
-				<h4 class="modal-title">Upload A File</h4>
+				<button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">{{ @dict.close }}</span></button>
+				<h4 class="modal-title">{{ @dict.upload_a_file }}</h4>
 			</div>
 			<div class="modal-body">
 				<input type="hidden" name="issue_id" value="{{ @issue.id }}" />
@@ -245,8 +280,8 @@
 				<textarea class="form-control input-sm" id="file_comment_textarea" name="text" type="text" placeholder="Write a comment&hellip;"></textarea>
 			</div>
 			<div class="modal-footer">
-				<button type="button" class="btn btn-sm btn-default" data-dismiss="modal">Cancel</button>
-				<button type="submit" class="btn btn-sm btn-primary">Upload</button>
+				<button type="button" class="btn btn-sm btn-default" data-dismiss="modal">{{ @dict.cancel }}</button>
+				<button type="submit" class="btn btn-sm btn-primary">{{ @dict.upload }}</button>
 			</div>
 		</div>
 	</div>
@@ -256,15 +291,15 @@
 	<div class="modal-dialog">
 		<div class="modal-content">
 			<div class="modal-header">
-				<button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">Close</span></button>
-				<h4 class="modal-title" id="modal-copy-label">Copy Issue</h4>
+				<button type="button" class="close" data-dismiss="modal"><span aria-hidden="true">&times;</span><span class="sr-only">{{ @dict.close }}</span></button>
+				<h4 class="modal-title" id="modal-copy-label">{{ @dict.copy_issue }}</h4>
 			</div>
 			<div class="modal-body">
-				<div id="pre-copy">Copying this issue will duplicate it and all of its descendants. No comments, files, history, or watchers will be copied.</div>
+				<div id="pre-copy">{{ @dict.copy_issue_details }}</div>
 			</div>
 			<div class="modal-footer">
-				<button type="button" class="btn btn-default btn-sm" data-dismiss="modal">Cancel</button>
-				<a id="btn-copy-confirm" class="btn btn-primary btn-sm" href="/issues/copy/{{ @issue.id }}">Copy Issue</a>
+				<button type="button" class="btn btn-default btn-sm" data-dismiss="modal">{{ @dict.cancel }}</button>
+				<a id="btn-copy-confirm" class="btn btn-primary btn-sm" href="/issues/copy/{{ @issue.id }}">{{ @dict.copy_issue }}</a>
 			</div>
 		</div>
 	</div>
@@ -282,47 +317,50 @@ $(function() {
 	$("#btn-copy-confirm").click(function(e) {
 		$(this).prop('disabled', true)
 			.addClass('disabled')
-			.html('Loading&hellip;');
+			.html('{{ @dict.loading }}');
 	});
 
 	// AJAX comment submission
 	$('#comment_form').submit(function(e) {
 		var $this = $(this);
+		if($this.children('textarea').val() !== '') {
+			$.post($this.attr('action'), $this.serialize(), function(data) {
+				if(data.error) {
+					return;
+				}
+				// Append the new comment to the list
+				$('#comment_form')
+					.prop('disabled', false)
+					.after(
+						'<div class="media" id="c-' + data.id + '">' +
+							'<a class="pull-left" href="user/' + data.user_username + '">' +
+								'<img src="{{ h(@user_obj->avatar(48)) }}" class="media-object profile-picture img-rounded" alt>' +
+							'</a>' +
+							'<div class="media-body">' +
+								'<p class="media-heading"><a href="user/' + data.user_username + '">' + data.user_name + '</a></p>' +
+								'<p class="tex">' + data.text + '</p>' +
+								'<p class="text-muted"><small>' + data.date_formatted + '</small></p>' +
+							'</div>' +
+						'</div>');
+				$('#comment_textarea').val('').html('');
+				$('#comment_badge').text(parseInt($('#comment_badge').text()) + 1);
+			}, 'json');
 
-		$.post($this.attr('action'), $this.serialize(), function(data) {
-			// Append the new comment to the list
-			$('#comment_form')
-				.prop('disabled', false)
-				.after(
-'<div class="media" id="c-' + data.id + '">' +
-	'<a class="pull-left" href="user/' + data.user_username + '">' +
-		'<img src="{{ h(@user_obj->avatar(48)) }}" class="media-object profile-picture img-rounded" alt>' +
-	'</a>' +
-	'<div class="media-body">' +
-		'<p class="media-heading"><a href="user/' + data.user_username + '">' + data.user_name + '</a></p>' +
-		'<p class="tex">' + data.text + '</p>' +
-		'<p class="text-muted"><small>' + data.date_formatted + '</small></p>' +
-	'</div>' +
-'</div>');
-			$('#comment_textarea').val('').html('');
-			$('#comment_badge').text(parseInt($('#comment_badge').text()) + 1);
-		}, 'json');
-
-		$this.prop('disabled', true);
-
+			$this.prop('disabled', true);
+		}
 		e.preventDefault();
 	});
 
 	// Load history, watchers, and related issues
 	$.get('issues/{{ @issue.id }}/history', {}, function(data) {
 		$('#history').empty().append(data.html);
-		$('#tab_history').html('History&ensp;<span class="badge">' + data.total + '</span>');
+		$('#tab_history').html('{{ @dict.history }}&ensp;<span class="badge">' + data.total + '</span>');
 	}, 'json').error(function() {
-		$('#history').empty().append($('<p />').addClass('text-center text-danger').text('Error loading issue history.'));
+		$('#history').empty().append($('<p />').addClass('text-center text-danger').text('{{ @dict.error.loading_issue_history }}'));
 	});
 	$.get('issues/{{ @issue.id }}/watchers', {}, function(data) {
 		$('#watchers').empty().append(data.html);
-		$('#tab_watchers').html('Watchers&ensp;<span class="badge" id="watchers-badge">' + data.total + '</span>');
+		$('#tab_watchers').html('{{ @dict.watchers }}&ensp;<span class="badge" id="watchers-badge">' + data.total + '</span>');
 
 		// Add/remove watchers from tab
 		$('#watchers-list').on('click', 'a.delete', function(e) {
@@ -353,13 +391,13 @@ $(function() {
 		});
 
 	}, 'json').error(function() {
-		$('#watchers').empty().append($('<p />').addClass('text-center text-danger').text('Error loading watchers.'));
+		$('#watchers').empty().append($('<p />').addClass('text-center text-danger').text('{{ @dict.error.loading_issue_watchers }}'));
 	});
 	$.get('issues/{{ @issue.id }}/related', {}, function(data) {
 		$('#related').empty().append(data.html);
 		$('#tab_related').html($('#tab_related').text() + '&ensp;<span class="badge">' + data.total + '</span>');
 	}, 'json').error(function() {
-		$('#related').empty().append($('<p />').addClass('text-center text-danger').text('Error loading related issues.'));
+		$('#related').empty().append($('<p />').addClass('text-center text-danger').text('{{ @dict.error.loading_related_issues }}'));
 	});
 
 	// Handle inline edit form
@@ -405,11 +443,11 @@ function restoreFile(file_id) {
 
 function watch_issue() {
 	$.post('issues/{{ @issue.id }}', {action: 'add_watcher', user_id: '{{ @user.id }}'});
-	$('#watch-btn').attr('onclick','unwatch_issue()').html('<span class="glyphicon glyphicon-eye-close"></span>&ensp;Unwatch');
+	$('#watch-btn').attr('onclick','unwatch_issue()').html('<span class="glyphicon glyphicon-eye-close"></span>&ensp;{{ @dict.unwatch }}');
 }
 function unwatch_issue() {
 	$.post('issues/{{ @issue.id }}', {action: 'remove_watcher', user_id: '{{ @user.id }}'});
-	$('#watch-btn').attr('onclick','watch_issue()').html('<span class="glyphicon glyphicon-eye-open"></span>&ensp;Watch');
+	$('#watch-btn').attr('onclick','watch_issue()').html('<span class="glyphicon glyphicon-eye-open"></span>&ensp;{{ @dict.watch }}');
 }
 </script>
 </body>

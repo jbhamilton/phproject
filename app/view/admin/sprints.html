@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html> -->
 <html lang="en">
 <head>
 	<include href="blocks/head.html" />
@@ -13,11 +13,10 @@
 					<li><a href="admin/">Overview</a></li>
 					<li><a href="admin/users">Users</a></li>
 					<li><a href="admin/groups">Groups</a></li>
-					<li><a href="admin/attributes">Attributes</a></li>
+					<!-- <li><a href="admin/attributes">Attributes</a></li> -->
 					<li class="active"><a href="admin/sprints">Sprints</a></li>
 				</ul>
 				<div class="pull-right">
-					<a href="admin/sprints/breaker" class="btn btn-default btn-sm">Projects&ensp;&#10095;&ensp;Sprints</a>
 					<a href="admin/sprints/new" class="btn btn-default btn-sm"><span class="glyphicon glyphicon-plus"></span>&ensp;New Sprint</a>
 				</div>
 			</div>
@@ -34,7 +33,7 @@
 					<repeat group="{{ @sprints }}" value="{{ @sprint }}">
 						<tr data-sprint-id="{{ @sprint.id }}">
 							<td>{{ @sprint.id }}</td>
-							<td>{{ @sprint.name }}</td>
+							<td><a href="admin/sprints/{{ @sprint.id }}">{{ @sprint.name }}</a></td>
 							<td>{{ @sprint.start_date }}</td>
 							<td>{{ @sprint.end_date }}</td>
 						</tr>

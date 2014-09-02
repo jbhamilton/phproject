@@ -13,12 +13,27 @@ class Issue extends Base {
 	public function hierarchy() {
 		$issues = array();
 		$issues[] = $this;
+		$issue_ids = array($this->get("id"));
 		$parent_id = $this->parent_id;
 		while($parent_id) {
+			// Catch infinite loops early on, in case server isn't running linux :)
+			if(in_array($parent_id, $issue_ids)) {
+				$f3 = \Base::instance();
+				$f3->set("error", "Issue parent tree contains an infinite loop. Issue {$parent_id} is the first point of recursion.");
+				break;
+			}
 			$issue = new Issue();
 			$issue->load($parent_id);
-			$issues[] = $issue;
-			$parent_id = $issue->parent_id;
+			if($issue->id) {
+				$issues[] = $issue;
+				$parent_id = $issue->parent_id;
+				$issue_ids[] = $issue->id;
+			} else {
+				// Handle nonexistent issues
+				$f3 = \Base::instance();
+				$f3->set("error", "Issue #{$issue->id} has a parent issue #{$issue->parent_id} that doesn't exist.");
+				break;
+			}
 		}
 
 		return array_reverse($issues);
@@ -52,6 +67,11 @@ class Issue extends Base {
 
 		// Check if updating or inserting
 		if($this->query) {
+
+			// Ensure issue is not tied to itself as a parent
+			if($this->get("id") == $this->get("parent_id")) {
+				$this->set("parent_id", $this->get_prev("parent_id"));
+			}
 
 			// Log update
 			$update = new \Model\Issue\Update();
@@ -87,7 +107,6 @@ class Issue extends Base {
 				$repeat_issue->description = $this->get("description");
 				$repeat_issue->repeat_cycle = $this->get("repeat_cycle");
 				$repeat_issue->created_date = now();
-
 
 				// Find a due date in the future
 				switch($repeat_issue->repeat_cycle) {
@@ -127,17 +146,7 @@ class Issue extends Base {
 			}
 
 			// Move all non-project children to same sprint
-			if($this->get("sprint_id")) {
-				$db = $f3->get("db.instance");
-				$db->exec(
-					"UPDATE issue SET sprint_id = :sprint WHERE parent_id = :issue AND type_id != :type",
-					array(
-						"sprint" => $this->get("sprint_id"),
-						"issue" => $this->get("id"),
-						"type" => $f3->get("issue_type.project")
-					)
-				);
-			}
+			$this->resetChildren();
 
 			// Log updated fields
 			foreach ($this->fields as $key=>$field) {
@@ -152,10 +161,9 @@ class Issue extends Base {
 				}
 			}
 
+			// Save issue and send notifications
 			$issue = parent::save();
-
 			if($updated) {
-				// Send notifications
 				if($notify) {
 					$notification = \Helper\Notification::instance();
 					$notification->issue_update($this->get("id"), $update->id);
@@ -165,11 +173,23 @@ class Issue extends Base {
 			}
 
 		} else {
+
+			// Move task to a sprint if the parent is in a sprint
+			if($this->get("parent_id") && !$this->get("sprint_id")) {
+				$parent = new \Model\Issue;
+				$parent->load($this->get("parent_id"));
+				if($parent->sprint_id) {
+					$this->set("sprint_id", $parent->sprint_id);
+				}
+			}
+
+			// Save issue and send notifications
 			$issue = parent::save();
 			if($notify) {
 				$notification = \Helper\Notification::instance();
 				$notification->issue_create($issue->id);
 			}
+
 			return $issue;
 		}
 
@@ -208,9 +228,11 @@ class Issue extends Base {
 
 		$this->copyto("duplicating_issue");
 		$f3->clear("duplicating_issue.id");
+		$f3->clear("duplicating_issue.due_date");
 
 		$new_issue = new Issue;
 		$new_issue->copyfrom("duplicating_issue");
+		$new_issue->clear("due_date");
 		$new_issue->save();
 
 		// Run the recursive function to duplicate the complete descendant tree
@@ -235,10 +257,12 @@ class Issue extends Base {
 				// Duplicate issue
 				$child->copyto("duplicating_issue");
 				$f3->clear("duplicating_issue.id");
+				$f3->clear("duplicating_issue.due_date");
 
 				$new_child = new Issue;
 				$new_child->copyfrom("duplicating_issue");
 				$new_child->clear("id");
+				$new_child->clear("due_date");
 				$new_child->set("parent_id", $new_id);
 				$new_child->save();
 
@@ -248,6 +272,26 @@ class Issue extends Base {
 			}
 		}
 
+	}
+
+	/**
+	 * Move all non-project children to same sprint
+	 * @return Issue
+	 */
+	public function resetChildren($replace_existing = true) {
+		$f3 = \Base::instance();
+		if($this->get("sprint_id")) {
+			$db = $f3->get("db.instance");
+			$db->exec(
+				"UPDATE issue SET sprint_id = :sprint WHERE parent_id = :issue AND type_id != :type" . $replace_existing ? '' : ' AND sprint_id IS NULL',
+				array(
+					"sprint" => $this->get("sprint_id"),
+					"issue" => $this->get("id"),
+					"type" => $f3->get("issue_type.project")
+				)
+			);
+		}
+		return $this;
 	}
 
 }

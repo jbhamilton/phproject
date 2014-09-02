@@ -10,9 +10,28 @@ class Taskboard extends Base {
 
 	public function index($f3, $params) {
 
+		// Require a valid numeric sprint ID
+		if(!intval($params["id"])) {
+			$f3->error(404);
+			return;
+		}
+
+		// Default to showing group tasks
 		if(empty($params["filter"])) {
 			$params["filter"] = "groups";
 		}
+
+		// Load the requested sprint
+		$sprint = new \Model\Sprint();
+		$sprint->load($params["id"]);
+		if(!$sprint->id) {
+			$f3->error(404);
+			return;
+		}
+
+		$f3->set("sprint", $sprint);
+		$f3->set("title", $sprint->name . " " . date('n/j', strtotime($sprint->start_date)) . "-" . date('n/j', strtotime($sprint->end_date)));
+		$f3->set("menuitem", "backlog");
 
 		// Get list of all users in the user's groups
 		if($params["filter"] == "groups") {
@@ -30,36 +49,20 @@ class Taskboard extends Base {
 		} elseif($params["filter"] == "me") {
 			$filter_users = array($this->_userId);
 		} elseif(is_numeric($params["filter"])) {
-			//get a taskboard for a user or group
+			// Get a taskboard for a user or group
 			$user= new \Model\User();
 			$user->load($params["filter"]);
 			if ($user->role == 'group') {
 				$group_model = new \Model\User\Group();
 				$users_result = $group_model->find(array("group_id = ?", $user->id));
-				$filter_users = array();
+				$filter_users = array(intval($params["filter"]));
 				foreach($users_result as $u) {
 					$filter_users[] = $u["user_id"];
-				}
-				if(empty($filter_users)) {
-					$filter_users = array($this->_userId);
 				}
 			} else {
 				$filter_users = array($params["filter"]);
 			}
-
 		}
-
-		// Load the requested sprint
-		$sprint = new \Model\Sprint();
-		$sprint->load($params["id"]);
-		if(!$sprint->id) {
-			$f3->error(404);
-			return;
-		}
-
-		$f3->set("sprint", $sprint);
-		$f3->set("title", $sprint->name . " " . date('n/j', strtotime($sprint->start_date)) . "-" . date('n/j', strtotime($sprint->end_date)));
-		$f3->set("menuitem", "backlog");
 
 		// Load issue statuses
 		$status = new \Model\Issue\Status();
@@ -72,25 +75,38 @@ class Taskboard extends Base {
 		}
 
 		$visible_status_ids = implode(",", $visible_status_ids);
-
 		$f3->set("statuses", $mapped_statuses);
 
 		// Load issue priorities
 		$priority = new \Model\Issue\Priority();
-		$f3->set("priorities", $priority->find(null, null, $f3->get("cache_expire.db")));
+		$f3->set("priorities", $priority->find(null, array("order" => "value DESC"), $f3->get("cache_expire.db")));
 
 		// Load project list
 		$issue = new \Model\Issue\Detail();
 
-		//Add the default project for non assigned bugs or tasks (id=0)
-		//Add any projects where the project may not be due, but a task within the project is due this sprint (3rd OR)
+		// Find all visible tasks
+		$tasks = $issue->find(array(
+			"sprint_id = ? AND type_id != ? AND deleted_date IS NULL AND status IN ($visible_status_ids)"
+				. (empty($filter_users) ? "" : " AND owner_id IN (" . implode(",", $filter_users) . ")"),
+			$sprint->id, $f3->get("issue_type.project")
+		), array("order" => "priority DESC"));
+		$task_ids = array();
+		$parent_ids = array(0);
+		foreach($tasks as $task) {
+			$task_ids[] = $task->id;
+			if($task->parent_id) {
+				$parent_ids[] = $task->parent_id;
+			}
+		}
+		$task_ids_str = implode(",", $task_ids);
+		$parent_ids_str = implode(",", $parent_ids);
+		$f3->set("tasks", $task_ids_str);
+
+		// Find all visible projects
 		$projects = $issue->find(array(
-			"id = 0 OR ((sprint_id = ? AND deleted_date IS NULL AND type_id = ?) OR (id IN (SELECT parent_id FROM issue WHERE type_id != ? AND sprint_id = ?) AND IFNULL(sprint_id, 0) != ?)) AND status IN ($visible_status_ids)",
-			$sprint->id,
-			$f3->get("issue_type.project"),
-			$f3->get("issue_type.project"),
-			$sprint->id,
-			$sprint->id
+			"(id IN ($parent_ids_str) AND type_id = ?) OR (sprint_id = ? AND type_id = ? AND deleted_date IS NULL"
+				. (empty($filter_users) ? ")" : " AND owner_id IN (" . implode(",", $filter_users) . "))"),
+			$f3->get("issue_type.project"), $sprint->id, $f3->get("issue_type.project")
 		), array("order" => "owner_id ASC"));
 
 		// Build multidimensional array of all tasks and projects
@@ -103,26 +119,11 @@ class Taskboard extends Base {
 				$columns[$status["id"]] = array();
 			}
 
-			if ($project["id"] == 0) {
-				// Orphaned sprint tasks - grab and attach here
-				$tasks = $issue->find(array(
-					"type_id != ? AND IFNULL(parent_id, '') = '' AND deleted_date IS NULL AND sprint_id = ? AND status IN ($visible_status_ids)",
-					$f3->get("issue_type.project"),
-					$sprint->id
-				), array("order" => "priority DESC, has_due_date ASC, due_date ASC"));
-				foreach ($tasks as $task) {
-					$task["parent_id"] = 0;
+			// Add current project's tasks
+			foreach ($tasks as $task) {
+				if($task->parent_id == $project->id || $project->id == 0 && !$task->parent_id) {
+					$columns[$task->status][] = $task;
 				}
-			} elseif ($project["sprint_id"] != $sprint->id) {
-				// Get tasks that are due during the sprint with a parent project not in the sprint
-				$tasks = $issue->find(array("parent_id = ? AND type_id != ? AND deleted_date IS NULL AND sprint_id = ? AND status IN ($visible_status_ids)", $project["id"], $f3->get("issue_type.project"), $sprint->id), array("order" => "priority DESC, has_due_date ASC, due_date ASC"));
-			} else {
-				// Get all non-projects (generally tasks) under the project, put them under their status
-				$tasks = $issue->find(array("parent_id = ? AND type_id != ? AND deleted_date IS NULL AND status IN ($visible_status_ids)", $project["id"], $f3->get("issue_type.project")), array("order" => "priority DESC, has_due_date ASC, due_date ASC"));
-			}
-
-			foreach($tasks as $task) {
-				$columns[$task["status"]][] = $task;
 			}
 
 			// Add hierarchial structure to taskboard array
@@ -133,63 +134,29 @@ class Taskboard extends Base {
 
 		}
 
-		// Filter tasks and projects
-		if(!empty($filter_users)) {
+		$f3->set("taskboard", array_values($taskboard));
+		$f3->set("filter", $params["filter"]);
 
-			// Determine which projects to keep and which to remove
-			$remove_project_indexes = array();
-			foreach ($taskboard as $pi=>&$p) {
+		// Get user list for select
+		$users = new \Model\User();
+		$f3->set("users", $users->getAll());
+		$f3->set("groups", $users->getAllGroups());
 
-				$kept_task_count = 0;
+		echo \Template::instance()->render("taskboard/index.html");
+	}
 
-				// Only remove tasks if project isn't in the list of shown users
-				if(!in_array($p["project"]["owner_id"], $filter_users)) {
-					foreach($p["columns"] as &$c) {
+	public function burndown($f3, $params) {
+		$sprint = new \Model\Sprint;
+		$sprint->load($params["id"]);
 
-						// Determine which tasks to keep and which to remove
-						$remove_task_indexes = array();
-						foreach($c as $ci=>&$t) {
-							if(!in_array($t["owner_id"], $filter_users)) {
-								// Task is not in list of shown users, mark for removal
-								$remove_task_indexes[] = $ci;
-							} else {
-								// Task is in list of shown users, increment kept task counter
-								$kept_task_count ++;
-							}
-						}
-
-						// Remove marked tasks
-						foreach($remove_task_indexes as $r) {
-							unset($c[$r]);
-						}
-					}
-				}
-
-				// Project is empty and not in the list of shown users, mark for removal
-				if(!$kept_task_count && !in_array($p["project"]["owner_id"], $filter_users)) {
-					$remove_project_indexes[] = $pi;
-				}
-
-			}
-
-			// Remove marked projects
-			foreach($remove_project_indexes as $r) {
-				unset($taskboard[$r]);
-			}
+		if(!$sprint->id) {
+			$f3->error(404);
+			return;
 		}
 
+		$visible_tasks = explode(",", $params["tasks"]);
 
-
-		// Build an array of all visible task IDs (used by the burndown)
-		$visible_tasks = array();
-		foreach($taskboard as $p) {
-			foreach($p["columns"] as $c) {
-				foreach($c as $t) {
-					$visible_tasks[] = $t["id"];
-				}
-			}
-		}
-		 //Visible tasks must have at least one key
+		// Visible tasks must have at least one key
 		if (empty($visible_tasks)) {
 			$visible_tasks = array(0);
 		}
@@ -198,13 +165,12 @@ class Taskboard extends Base {
 		$today = date('Y-m-d');
 		$today = $today . " 23:59:59";
 
-		//Check to see  if the sprint is completed
-		if ($today < strtotime($sprint->end_date . ' + 1 day')){
+		// Check to see if the sprint is completed
+		if ($today < strtotime($sprint->end_date . ' + 1 day')) {
 			$burnComplete = 0;
 			$burnDates = createDateRangeArray($sprint->start_date, $today);
 			$remainingDays = createDateRangeArray($today, $sprint->end_date);
-		}
-		else{
+		} else {
 			$burnComplete = 1;
 			$burnDates = createDateRangeArray($sprint->start_date, $sprint->end_date);
 			$remainingDays = array();
@@ -216,25 +182,25 @@ class Taskboard extends Base {
 
 		$db = $f3->get("db.instance");
 
-		foreach($burnDates as $date){
+		foreach($burnDates as $date) {
 
-			//Get total_hours, which is the initial amount entered on each task, and cache this query
-			if($i == 1){
-				$burnDays[$date] =
-					$db->exec("
-						SELECT i.hours_total AS remaining
-						FROM issue i
-						WHERE i.id IN (". implode(",", $visible_tasks) .")
-						AND i.created_date < '" . $sprint->start_date  . " 00:00:00'", // Only count tasks added before sprint
-						NULL,
-						2678400 // 31 days
-					);
+			// Get total_hours, which is the initial amount entered on each task, and cache this query
+			if($i == 1) {
+				$result = $db->exec("
+					SELECT SUM(i.hours_total) AS remaining
+					FROM issue i
+					WHERE i.id IN (". implode(",", $visible_tasks) .")
+					AND i.created_date < '" . $sprint->start_date  . " 00:00:00'", // Only count tasks added before sprint
+					NULL,
+					2678400 // 31 days
+				);
+				$burnDays[$date] = $result[0];
 			}
 
-			//Get between day values and cache them... this also will get the last day of completed sprints so they will be cached
-			else if($i < ($burnDatesCount - 1) || $burnComplete ){
-				$burnDays[$date] = $db->exec("
-					SELECT IF(f.new_value = '' OR f.new_value IS NULL, i.hours_total, f.new_value) AS remaining
+			// Get between day values and cache them... this also will get the last day of completed sprints so they will be cached
+			elseif ($i < ($burnDatesCount - 1) || $burnComplete) {
+				$result = $db->exec("
+					SELECT SUM(IF(f.new_value = '' OR f.new_value IS NULL, i.hours_total, f.new_value)) AS remaining
 					FROM issue_update_field f
 					JOIN issue_update u ON u.id = f.issue_update_id
 					JOIN (
@@ -252,34 +218,36 @@ class Taskboard extends Base {
 					NULL,
 					2678400 // 31 days
 				);
+				$burnDays[$date] = $result[0];
 			}
 
-			//Get the today's info and don't cache it
-			else{
-				$burnDays[$date] =
-					$db->exec("
-						SELECT IF(f.new_value = '' OR f.new_value IS NULL, i.hours_total, f.new_value) AS remaining
-						FROM issue_update_field f
-						JOIN issue_update u ON u.id = f.issue_update_id
-						JOIN (
-							SELECT MAX(u.id) AS max_id
-							FROM issue_update u
-							JOIN issue_update_field f ON f.issue_update_id = u.id
-							WHERE f.field = 'hours_remaining'
-							AND u.created_date < '" . $date . " 23:59:59'
-							GROUP BY u.issue_id
-						) a ON a.max_id = u.id
-						RIGHT JOIN issue i ON i.id = u.issue_id
-						WHERE (f.field = 'hours_remaining' OR f.field IS NULL)
-						AND i.created_date < '". $date . " 23:59:59'
-						AND i.id IN (". implode(",", $visible_tasks) . ")"
+			// Get the today's info and don't cache it
+			else {
+				$result = $db->exec("
+					SELECT SUM(IF(f.new_value = '' OR f.new_value IS NULL, i.hours_total, f.new_value)) AS remaining
+					FROM issue_update_field f
+					JOIN issue_update u ON u.id = f.issue_update_id
+					JOIN (
+						SELECT MAX(u.id) AS max_id
+						FROM issue_update u
+						JOIN issue_update_field f ON f.issue_update_id = u.id
+						WHERE f.field = 'hours_remaining'
+						AND u.created_date < '" . $date . " 23:59:59'
+						GROUP BY u.issue_id
+					) a ON a.max_id = u.id
+					RIGHT JOIN issue i ON i.id = u.issue_id
+					WHERE (f.field = 'hours_remaining' OR f.field IS NULL)
+					AND i.created_date < '". $date . " 23:59:59'
+					AND i.id IN (". implode(",", $visible_tasks) . ")"
 				);
+				$burnDays[$date] = $result[0];
 			}
 
 			$i++;
 		}
 
-		if(!$burnComplete){//add in empty days
+		// Add in empty days
+		if(!$burnComplete) {
 			$i = 0;
 			foreach($remainingDays as $day) {
 				if($i != 0){
@@ -289,39 +257,25 @@ class Taskboard extends Base {
 			}
 		}
 
-		//reformat the date and remove weekends
+		// Reformat the date and remove weekends
 		$i = 0;
-		foreach($burnDays as $burnKey => $burnDay){
+		foreach($burnDays as $burnKey => $burnDay) {
 
 			$weekday = date("D", strtotime($burnKey));
 			$weekendDays = array("Sat","Sun");
 
-			if( !in_array($weekday, $weekendDays) ){
+			if(!in_array($weekday, $weekendDays)) {
 				$newDate = date("M j", strtotime($burnKey));
 				$burnDays[$newDate] = $burnDays[$burnKey];
 				unset($burnDays[$burnKey]);
-			}
-			else{//remove weekend days
+			} else { // Remove weekend days
 				unset($burnDays[$burnKey]);
 			}
 
 			$i++;
 		}
 
-		$burndown = array($burnDays);
-
-		$f3->set("burndown", json_encode($burndown));
-
-		$f3->set("taskboard", array_values($taskboard));
-		$f3->set("filter", $params["filter"]);
-
-		// Get user list for select
-		$users = new \Model\User();
-		$f3->set("users", $users->getAll());
-		$f3->set("groups", $users->getAllGroups());
-
-		echo \Template::instance()->render("taskboard/index.html");
-
+		print_json($burnDays);
 	}
 
 	public function add($f3, $params) {
@@ -366,6 +320,13 @@ class Taskboard extends Base {
 			$issue->description = $post["description"];
 			$issue->owner_id = $post["assigned"];
 			$issue->hours_remaining = $post["hours"];
+			$issue->hours_spent += $post["hours_spent"];
+			if(!empty($post["hours_spent"]) && !empty($post["burndown"])) {
+				$issue->hours_remaining -=  $post["hours_spent"];
+			}
+			if($issue->hours_remaining < 0) {
+				$issue->hours_remaining = 0;
+			}
 			if(!empty($post["dueDate"])) {
 				$issue->due_date = date("Y-m-d", strtotime($post["dueDate"]));
 			} else {
@@ -377,6 +338,21 @@ class Taskboard extends Base {
 			}
 			$issue->title = $post["title"];
 		}
+
+		if(!empty($post["comment"])) {
+			$comment = new \Model\Issue\Comment;
+			$comment->user_id = $this->_userId;
+			$comment->issue_id = $issue->id;
+			if(!empty($post["hours_spent"])) {
+				$comment->text = trim($post["comment"]) . sprintf(" (%s %s spent)", $post["hours_spent"], $post["hours_spent"] == 1 ? "hour" : "hours");
+			} else {
+				$comment->text = $post["comment"];
+			}
+			$comment->created_date = now();
+			$comment->save();
+			$issue->update_comment = $comment->id;
+		}
+
 		$issue->save();
 
 		print_json($issue->cast() + array("taskId" => $issue->id));

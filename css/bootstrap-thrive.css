@@ -1458,7 +1458,7 @@ output {
 }
 .form-control[disabled], .form-control[readonly], fieldset[disabled] .form-control {
 	cursor: not-allowed;
-	background-color: #fff;
+	background-color: #f0f0f0;
 	opacity: 1;
 }
 textarea.form-control {
@@ -3810,7 +3810,7 @@ a.thumbnail:hover, a.thumbnail:focus, a.thumbnail.active {
 	color: #3d3d3d;
 }
 .alert {
-	padding: 15px;
+	padding: 10px 15px;
 	margin-bottom: 21px;
 	border: 1px solid transparent;
 	border-radius: 0px;
@@ -3838,8 +3838,8 @@ a.thumbnail:hover, a.thumbnail:focus, a.thumbnail.active {
 	color: inherit;
 }
 .alert-success {
-	background-color: #d74300;
-	border-color: #d74300;
+	background-color: #4CCC14;
+	border-color: #4CCC14;
 	color: #fff;
 }
 .alert-success hr {
@@ -5135,7 +5135,14 @@ a{transition:color .25s;}
 	margin-top: 5px;
 }
 
-body #taskboard .card{
-	color:#000000;
-	background-color:#ffffff;
+#taskboard .card{
+	color: #000;
+	background-color: #fff !important;
+}
+
+.datepicker td.active,
+.datepicker td.active:hover,
+.datepicker td span.active,
+.datepicker td span.active:hover {
+	background-color: #3D3D3D !important;
 }

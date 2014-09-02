@@ -1,20 +1,25 @@
 <?php
 
-if ((float)PCRE_VERSION < 7.9)
-	trigger_error('PCRE version is out of date');
-
 // Initialize core
 $f3=require("lib/base.php");
 $f3->mset(array(
 	"UI" => "app/view/",
 	"LOGS" => "log/",
 	"TEMP" => "tmp/",
+	"LOCALES" => "app/dict/",
+	"FALLBACK" => "en",
 	"CACHE" => true,
 	"AUTOLOAD" => "app/",
 	"PACKAGE" => "Phproject",
 	"microtime" => microtime(true),
 	"site.url" => $f3->get("SCHEME") . "://" . $f3->get("HOST") . $f3->get("BASE") . "/"
 ));
+
+// Redirect to installer if no config file is found
+if(!is_file("config.ini")) {
+	header("Location: install.php");
+	exit();
+}
 
 // Get current Git revision
 if(is_file(".git/refs/heads/master")) {
@@ -52,7 +57,7 @@ $f3->set("ONERROR", function($f3) {
 
 // Connect to database
 $f3->set("db.instance", new DB\SQL(
-	"mysql:host=" . $f3->get("db.host") . ";port=3306;dbname=" . $f3->get("db.name"),
+	"mysql:host=" . $f3->get("db.host") . ";port=" . $f3->get("db.port") . ";dbname=" . $f3->get("db.name"),
 	$f3->get("db.user"),
 	$f3->get("db.pass")
 ));
