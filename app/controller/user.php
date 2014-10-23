@@ -15,7 +15,6 @@ class User extends \Controller {
 	}
 
 	public function dashboard($f3, $params) {
-		$projects = new \Model\Issue\Detail();
 
 		// Add user's group IDs to owner filter
 		$owner_ids = array($this->_userId);
@@ -25,35 +24,34 @@ class User extends \Controller {
 		}
 		$owner_ids = implode(",", $owner_ids);
 
-		$order = "priority DESC, has_due_date ASC, due_date ASC";
-		$f3->set("projects", $projects->find(
+		// Load all open issues
+		$issue = new \Model\Issue\Detail();
+		$issues = $issue->find(
 			array(
 				"owner_id IN ($owner_ids) and type_id=:type AND deleted_date IS NULL AND closed_date IS NULL AND status_closed = 0",
 				":type" => $f3->get("issue_type.project"),
-			),array(
-				"order" => $order
+			), array(
+				"order" => "parent_id ASC, `status` ASC, priority DESC, has_due_date ASC, due_date ASC"
 			)
-		));
+		);
+		$f3->set("issues", $issues);
 
-		$bugs = new \Model\Issue\Detail();
-		$f3->set("bugs", $bugs->find(
-			array(
-				"owner_id IN ($owner_ids) and type_id=:type AND deleted_date IS NULL AND closed_date IS NULL AND status_closed = 0",
-				":type" => $f3->get("issue_type.bug"),
-			),array(
-				"order" => $order
-			)
-		));
+		// Load all parents
+		$parent_ids = array();
+		foreach ($issues as $i) {
+			if($i->parent_id) {
+				$parent_ids[] = $i->parent_id;
+			}
+		}
+		$parent_ids = implode(",", array_unique($parent_ids));
+		$parents = $issue->find(array("id IN ($parent_ids)"));
 
-		$tasks = new \Model\Issue\Detail();
-		$f3->set("tasks", $tasks->find(
-			array(
-				"owner_id IN ($owner_ids) AND type_id=:type AND deleted_date IS NULL AND closed_date IS NULL AND status_closed = 0",
-				":type" => $f3->get("issue_type.task"),
-			),array(
-				"order" => $order
-			)
-		));
+		// Build associative array from $parents
+		$parents_assoc = array();
+		foreach($parents as $p) {
+			$parents_assoc[$p->id] = $p;
+		}
+		$f3->set("parents", $parents_assoc);
 
 		// Get current sprint if there is one
 		$sprint = new \Model\Sprint;
