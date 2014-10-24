@@ -28,7 +28,7 @@ class User extends \Controller {
 		$issue = new \Model\Issue\Detail();
 		$issues = $issue->find(
 			array(
-				"owner_id IN ($owner_ids) and type_id=:type AND deleted_date IS NULL AND closed_date IS NULL AND status_closed = 0",
+				"owner_id IN ($owner_ids) and type_id!=:type AND deleted_date IS NULL AND closed_date IS NULL AND status_closed = 0",
 				":type" => $f3->get("issue_type.project"),
 			), array(
 				"order" => "parent_id ASC, `status` ASC, priority DESC, has_due_date ASC, due_date ASC"
@@ -36,22 +36,51 @@ class User extends \Controller {
 		);
 		$f3->set("issues", $issues);
 
-		// Load all parents
+		// Load all projects
 		$parent_ids = array();
 		foreach ($issues as $i) {
 			if($i->parent_id) {
 				$parent_ids[] = $i->parent_id;
 			}
 		}
-		$parent_ids = implode(",", array_unique($parent_ids));
-		$parents = $issue->find(array("id IN ($parent_ids)"));
-
-		// Build associative array from $parents
-		$parents_assoc = array();
-		foreach($parents as $p) {
-			$parents_assoc[$p->id] = $p;
+		if($parent_ids) {
+			$parent_ids = implode(",", array_unique($parent_ids));
+			$parents = $issue->find(array(
+				"id IN ($parent_ids) OR (owner_id = :user AND type_id != :type AND deleted_date IS NULL AND closed_date IS NULL AND status_closed = 0)",
+				":user" => $this->_userId,
+				":type" => $f3->get("issue_type.project"),
+			));
+		} else {
+			$parents = array();
 		}
-		$f3->set("parents", $parents_assoc);
+
+		// Load all issue statuses used to build the insane associative arrays below
+		$status = new \Model\Issue\Status;
+		$statuses = $status->find();
+		$f3->set("statuses", $statuses);
+
+		// Warning: srslywat this works?
+		$orphans = array();
+		$projects = array();
+		foreach($statuses as $s)
+			$orphans[$s->id] = array();
+		foreach($parents as $p) {
+			$projects[$p->id] = array("project" => $p) + $orphans;
+			foreach($statuses as $s)
+				$projects[$p->id][$s->id] = array();
+			foreach($issues as &$i) {
+				if($i->parent_id == $p->id)
+					$projects[$p->id][$s->id][$i->id] = $i;
+				unset($i);
+			}
+		}
+		foreach($issues as $i) {
+			$orphans[$i->status][$i->id] = $i;
+		}
+
+		// All good, pass the data on to the view
+		$f3->set("orphans", $orphans);
+		$f3->set("projects", $projects);
 
 		// Get current sprint if there is one
 		$sprint = new \Model\Sprint;
